@@ -212,7 +212,9 @@ export async function callAI(
 
   const fullPrompt = contextLines.join("\n");
 
-  const apiUrl = `https://delfaapiai.vercel.app/ai/copilot?message=${encodeURIComponent(fullPrompt)}&model=default`;
+  const aiBaseUrl = process.env["AI_API_URL"];
+  if (!aiBaseUrl) throw new Error("AI_API_URL environment variable is not set.");
+  const apiUrl = `${aiBaseUrl}?message=${encodeURIComponent(fullPrompt)}&model=default`;
 
   console.log(`[AI] Calling API for message: "${userMessage.slice(0, 60)}"`);
 
@@ -374,7 +376,9 @@ export async function tryFallbackAppointmentExtract(
   const extractPrompt = `Voici une conversation entre un client et un agent :\n${historyText}\nAgent: ${aiResponse}\n\nExtrait les informations du rendez-vous confirmé. Réponds UNIQUEMENT avec le JSON suivant (rien d'autre, pas d'explication) :\n{"clientName":"PRENOM NOM","date":"YYYY-MM-DD","time":"HH:MM","notes":"service"}\nSi les informations sont incomplètes ou qu'il n'y a pas de rendez-vous confirmé, réponds uniquement: NON`;
 
   try {
-    const apiUrl = `https://delfaapiai.vercel.app/ai/copilot?message=${encodeURIComponent(extractPrompt)}&model=default`;
+    const aiBaseUrl = process.env["AI_API_URL"];
+    if (!aiBaseUrl) return null;
+    const apiUrl = `${aiBaseUrl}?message=${encodeURIComponent(extractPrompt)}&model=default`;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 10000);
     const res = await fetch(apiUrl, { signal: controller.signal });

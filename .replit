@@ -64,6 +64,8 @@ timeoutMs = 20000
 PORT = "5000"
 BASE_PATH = "/"
 API_PORT = "8080"
+ADMIN_EMAILS = "foctaveluka@gmail.com,octaveluka@gmail.com"
+AI_API_URL = "https://delfaapiai.vercel.app/ai/copilot"
 
 [nix]
 channel = "stable-25_05"
