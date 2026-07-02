@@ -212,7 +212,8 @@ router.post("/:id/pair", async (req, res) => {
     return res.json({ code });
   } catch (err) {
     console.error(`[Agents] /pair failed for agent ${id}:`, err);
-    return res.status(500).json({ error: String(err) });
+    const msg = err instanceof Error ? err.message.slice(0, 300) : "Erreur lors de la génération du code de couplage";
+    return res.status(500).json({ error: msg });
   }
 });
 

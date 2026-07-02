@@ -70,8 +70,9 @@ router.post("/", async (req, res) => {
       const ok = await waManager.sendMessageToJid(agentId, jid, text);
       results.push({ leadId: lead.id, name: lead.name, phone: lead.phone, status: ok ? "sent" : "failed" });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      results.push({ leadId: lead.id, name: lead.name, phone: lead.phone, status: "failed", error: msg });
+      // Log internally but never expose raw error details to the client
+      console.error(`[Broadcast] Failed to send to lead ${lead.id} (${lead.phone}):`, err);
+      results.push({ leadId: lead.id, name: lead.name, phone: lead.phone, status: "failed", error: "Échec d'envoi" });
     }
 
     // throttle — skip delay after last message

@@ -1,31 +1,61 @@
 ---
 name: Security hardening
-description: What was secured, key decisions, and one gotcha with zod resolution in the api-server esbuild bundle.
+description: All security fixes applied to the WA Agent platform — patterns to preserve and re-apply consistently.
 ---
 
-## What was hardened (app.ts / auth.ts / whatsapp.ts / products.ts)
+## Applied security layers (api-server)
 
-- **Helmet** added with CSP; `fontSrc` must include `fonts.gstatic.com` and `styleSrc` must include `fonts.googleapis.com` to avoid breaking the frontend in production.
-- **CORS** changed from `origin: true` (reflect all) to explicit whitelist via `ALLOWED_ORIGINS` env var + localhost in dev only. No wildcard Replit domain with `credentials: true` — that allows any Replit user subdomain to make authenticated requests.
-- **Rate limiting** (express-rate-limit): 15 req/15 min on auth routes, 200 req/min on general API.
-- **Body size limits**: `express.json({ limit: "500kb" })`, `express.urlencoded({ limit: "100kb" })`.
-- **SESSION_SECRET fallback removed** — throws on startup if not set.
-- **ADMIN_EMAILS** moved to env var `ADMIN_EMAILS` (comma-separated). Previously hardcoded in source.
-- **AI_API_URL** moved to env var. Was hardcoded `https://delfaapiai.vercel.app/ai/copilot` in two places in whatsapp.ts.
-- **Zod validation** on `/register` and `/login` (min 8-char password, email format, max lengths).
-- **timingSafeEqual** for password comparison — with pre-check that both hashes are valid 128-char hex strings to avoid throw on malformed DB value.
-- **File upload MIME validation**: only jpeg/png/webp/gif allowed in multer fileFilter.
-- **Global error handler** added — hides stack traces in production.
+**app.ts**
+- Helmet with CSP (Google Fonts whitelisted)
+- Strict CORS whitelist from `ALLOWED_ORIGINS` env var — no wildcard
+- Rate limiting: 15 req/15min on auth routes, 200/min on API
+- Body size limits: 500 kb JSON, 100 kb urlencoded
+- SESSION_SECRET required (throws on start if absent)
+- Global error handler: stack traces hidden in production
 
-## Gotcha: zod in api-server esbuild bundle
+**auth.ts**
+- ADMIN_EMAILS from env var (not hardcoded)
+- Zod validation on /register (email, min 8-char password) and /login
+- `crypto.timingSafeEqual` with hex format pre-check
 
-`zod/v4` subpath works in `lib/` packages (compiled by tsc separately) but esbuild in `artifacts/api-server/build.mjs` cannot resolve it unless `zod` is a **direct dependency** of `@workspace/api-server`. Fix: `pnpm --filter @workspace/api-server add zod`. Use `import { z } from "zod/v4"` after that.
+**Authorization pattern — BOLA prevention**
+- All DB routes filter by `session.userId`
+- knowledge.ts, agentProducts.ts: `assertAgentOwnership(agentId, userId)` before any operation
+- conversations.ts: `getOwnedConversation(id, userId)` on all PATCH/POST
+- blacklist.ts: `eq(blacklistTable.userId, userId)` on all mutations + phone regex `/^\d{6,15}$/` + 500 max bulk
+- calendar.ts: `requireAdmin` middleware — Google Calendar is platform-level, not per-user
+- agents.ts: all routes use `and(eq(agentsTable.id, id), eq(agentsTable.userId, userId))`
+- webhooksRoute.ts: `eq(webhooksTable.userId, userId)` on all mutations
+- notificationsRoute.ts: `eq(notificationSettingsTable.userId, userId)` on all mutations
 
-**Why:** esbuild bundles everything for the api-server. Transitive zod from workspace libs is not in scope for the api-server's own source files.
+**Input validation**
+- Zod on all routes that accept user input
+- notificationsRoute.ts: `frequency` validated as `z.enum(["instant","hourly","daily"])` — previously any string
+- calendar.ts: Zod on POST body (date regex YYYY-MM-DD, time HH:MM)
+- webhooksRoute.ts: allowed events enumerated in `ALLOWED_EVENTS` const
 
-## Required env vars (all in shared)
-- `SESSION_SECRET` — secret key (Replit secret)
-- `ADMIN_EMAILS` — comma-separated admin emails
-- `AI_API_URL` — AI copilot endpoint
-- `ALLOWED_ORIGINS` — comma-separated allowed CORS origins (for production deployments)
-- `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` — Cloudinary (Replit secrets)
+**XSS**
+- widgets.ts: `escapeHtmlAttr()` applied to all user-supplied values in embed script snippet
+
+**SSRF (webhooksRoute.ts)**
+- Validate `parsed.hostname` (not raw string) to block userinfo bypass tricks like `http://attacker@127.0.0.1/`
+- Strip `[]` from IPv6 literals before matching
+- Reject private ranges: 10/8, 172.16-31, 192.168, 127, 169.254, ::1, fc/fd/fe80, localhost
+- Also parse numeric IPv4 parts to catch octal/decimal-encoded private addresses
+- Re-validate stored URL at ping time (covers legacy records)
+
+**Error handling**
+- No `String(err)` in responses — use `err instanceof Error ? err.message.slice(0, 200) : "Erreur interne"`
+- broadcast.ts: per-lead errors logged internally only, client gets "Échec d'envoi"
+- calendar.ts: all catch blocks use `safeError()` helper + log internally
+
+**Path traversal**
+- whatsapp.ts: `Math.floor(Math.abs(Number(agentId)))` before embedding agentId in path.join
+
+**Why:** Platform has multiple users sharing one server. Every route must enforce ownership or an attacker
+who registers an account can read/modify other users' data (BOLA), probe internal infrastructure (SSRF),
+or inject content into other users' embeds (XSS).
+
+**How to apply:** For every new route: (1) check userId from session, (2) add userId to WHERE clause,
+(3) add Zod schema, (4) never return String(err) or stack traces, (5) for any server-side HTTP call validate
+the target URL with the SSRF guard in webhooksRoute.ts.

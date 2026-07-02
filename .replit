@@ -67,6 +67,8 @@ API_PORT = "8080"
 ADMIN_EMAILS = "foctaveluka@gmail.com,octaveluka@gmail.com"
 AI_API_URL = "https://delfaapiai.vercel.app/ai/copilot"
 
+[userenv.production]
+
 [nix]
 channel = "stable-25_05"
 
