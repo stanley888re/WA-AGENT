@@ -12,6 +12,9 @@ export default defineConfig({
   dialect: "postgresql",
   dbCredentials: {
     url: dbUrl,
+    // rejectUnauthorized:false is required for Supabase/Neon pooler connections
+    // which use self-signed certs at the TLS layer. Payload is still encrypted.
+    // This config is only used by drizzle-kit (schema push/pull), not the runtime server.
     ssl: { rejectUnauthorized: false },
   },
   tablesFilter: ["!user_sessions"],

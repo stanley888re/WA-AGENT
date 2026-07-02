@@ -9,8 +9,18 @@ const uid = (req: Request): number => (req.session as Sess).userId!;
 
 const router = Router();
 
+/** Escape HTML attribute values to prevent XSS in the generated embed snippet */
+function escapeHtmlAttr(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
 const genEmbed = (phone: string, welcome: string, color: string, text: string, pos: string) =>
-  `<script src="https://wa-agent.app/widget.js" data-phone="${phone}" data-welcome="${welcome}" data-color="${color}" data-text="${text}" data-position="${pos}"></script>`;
+  `<script src="https://wa-agent.app/widget.js" data-phone="${escapeHtmlAttr(phone)}" data-welcome="${escapeHtmlAttr(welcome)}" data-color="${escapeHtmlAttr(color)}" data-text="${escapeHtmlAttr(text)}" data-position="${escapeHtmlAttr(pos)}"></script>`;
 
 router.get("/", async (req, res) => {
   const userId = uid(req);

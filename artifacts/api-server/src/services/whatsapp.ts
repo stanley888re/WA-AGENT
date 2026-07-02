@@ -514,7 +514,9 @@ class WhatsAppManager extends EventEmitter {
           .where(eq(whatsappSessionsTable.agentId, agentId));
       } catch { /* ignore */ }
       // Also clean up legacy filesystem sessions if they still exist
-      const authDir = path.join(this.sessionsDir, `agent-${agentId}`);
+      // Sanitize agentId to a safe integer string before embedding in a path (prevent traversal)
+      const safeAgentId = Math.floor(Math.abs(Number(agentId)));
+      const authDir = path.join(this.sessionsDir, `agent-${safeAgentId}`);
       if (existsSync(authDir)) {
         try { rmSync(authDir, { recursive: true, force: true }); } catch { /* ignore */ }
       }
@@ -530,7 +532,9 @@ class WhatsAppManager extends EventEmitter {
       await db.delete(whatsappSessionsTable)
         .where(eq(whatsappSessionsTable.agentId, agentId));
     } catch { /* ignore */ }
-    const authDir = path.join(this.sessionsDir, `agent-${agentId}`);
+    // Sanitize agentId to a safe integer string before embedding in a path (prevent traversal)
+    const safeId = Math.floor(Math.abs(Number(agentId)));
+    const authDir = path.join(this.sessionsDir, `agent-${safeId}`);
     if (existsSync(authDir)) {
       try { rmSync(authDir, { recursive: true, force: true }); } catch { /* ignore */ }
     }

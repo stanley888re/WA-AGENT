@@ -27,6 +27,10 @@ router.post("/", async (req, res) => {
   if (!userId) return res.status(401).json({ error: "Non authentifié" });
   const { phone, reason } = req.body as { phone: string; reason?: string };
   if (!phone) return res.status(400).json({ error: "phone required" });
+  // Validate phone format: digits only, 6–15 chars (E.164 without the +)
+  if (!/^\d{6,15}$/.test(phone.trim())) {
+    return res.status(400).json({ error: "Format de numéro invalide (chiffres uniquement, 6 à 15 caractères)" });
+  }
   try {
     const [item] = await db.insert(blacklistTable).values({
       userId,
@@ -42,10 +46,16 @@ router.post("/", async (req, res) => {
 router.post("/bulk", async (req, res) => {
   const userId = uid(req);
   if (!userId) return res.status(401).json({ error: "Non authentifié" });
-  const { phones, reason } = req.body as { phones: string[]; reason?: string };
-  if (!phones?.length) return res.status(400).json({ error: "phones array required" });
+  const { phones, reason } = req.body as { phones: unknown; reason?: string };
+  if (!Array.isArray(phones) || phones.length === 0) return res.status(400).json({ error: "phones array required" });
+  if (phones.length > 500) return res.status(400).json({ error: "Maximum 500 numéros par requête" });
+  const PHONE_RE = /^\d{6,15}$/;
+  const invalidPhone = (phones as unknown[]).find(p => typeof p !== "string" || !PHONE_RE.test((p as string).trim()));
+  if (invalidPhone !== undefined) {
+    return res.status(400).json({ error: "Un ou plusieurs numéros ont un format invalide (chiffres uniquement, 6 à 15 caractères)" });
+  }
   const results = [];
-  for (const phone of phones) {
+  for (const phone of phones as string[]) {
     try {
       const [item] = await db.insert(blacklistTable).values({
         userId,

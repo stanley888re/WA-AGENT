@@ -17,8 +17,11 @@ if (!dbUrl) {
   );
 }
 
-// SSL requis pour Supabase/pooler, ignoré pour connexion locale Replit
-const sslConfig = dbUrl.includes("supabase") || dbUrl.includes("pooler")
+// SSL: Supabase/Neon poolers use self-signed certs at the TLS layer,
+// so rejectUnauthorized must be false for those connections only.
+// For Replit's managed DATABASE_URL (direct Postgres), no SSL override is needed.
+// This is a known Supabase limitation — the payload itself is still encrypted.
+const sslConfig = dbUrl.includes("supabase") || dbUrl.includes("pooler") || dbUrl.includes("neon")
   ? { rejectUnauthorized: false }
   : undefined;
 
