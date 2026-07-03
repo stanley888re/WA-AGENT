@@ -12,13 +12,31 @@ services:
         value: production
       - key: NODE_VERSION
         value: "20"
+      # ── Base de données ─────────────────────────────────────────────────────
+      # Utilisez DATABASE_URL (Render PostgreSQL) ou SUPABASE_DATABASE_URL
       - key: DATABASE_URL
         sync: false
+      - key: SUPABASE_DATABASE_URL
+        sync: false
+      # ── Sécurité ────────────────────────────────────────────────────────────
       - key: SESSION_SECRET
         sync: false
+      # ── Cloudinary (images produits) ────────────────────────────────────────
       - key: CLOUDINARY_CLOUD_NAME
         sync: false
       - key: CLOUDINARY_API_KEY
         sync: false
       - key: CLOUDINARY_API_SECRET
+        sync: false
+      # ── Agent IA ────────────────────────────────────────────────────────────
+      - key: AI_API_URL
+        sync: false
+      # ── Accès admin ─────────────────────────────────────────────────────────
+      # Emails séparés par des virgules (ex: admin@example.com,autre@example.com)
+      - key: ADMIN_EMAILS
+        sync: false
+      # ── CORS production ─────────────────────────────────────────────────────
+      # URL publique de votre app Render (ex: https://wa-agent.onrender.com)
+      # Ajoutez d'autres origines séparées par des virgules si nécessaire
+      - key: ALLOWED_ORIGINS
         sync: false

@@ -147,6 +147,9 @@ const apiLimiter = rateLimit({
 });
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
+// Public health check — must be BEFORE auth middleware so Render can reach it
+app.get("/api/healthz", (_req, res) => res.json({ status: "ok" }));
+
 // Auth routes — public but rate-limited
 app.use("/api/auth", authLimiter, authRouter);
 

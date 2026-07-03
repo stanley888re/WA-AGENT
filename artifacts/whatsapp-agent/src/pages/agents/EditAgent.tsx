@@ -437,62 +437,57 @@ export default function EditAgent() {
   const isConnected = a.whatsappConnected as boolean;
 
   return (
-    <div className="p-4 md:p-8 max-w-7xl mx-auto flex flex-col md:flex-row gap-6 md:h-[calc(100vh-4rem)]">
+    <div className="p-3 md:p-8 max-w-7xl mx-auto flex flex-col md:flex-row gap-4 md:gap-6 md:h-[calc(100vh-4rem)]">
       {/* Left: Config — shown second on mobile, first on desktop */}
       <div className="order-2 md:order-1 flex-1 flex flex-col min-h-0 md:overflow-hidden">
-        <div className="mb-4 flex items-start justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-3 flex-wrap">
-              <h1 className="text-2xl font-bold tracking-tight">{agent.name}</h1>
-              <Badge variant={agent.isActive ? "default" : "secondary"}>{agent.isActive ? "Actif" : "Inactif"}</Badge>
+        {/* ── Header ── */}
+        <div className="mb-3 md:mb-4 flex flex-col gap-2">
+          {/* Row 1: title + active toggle */}
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-lg md:text-2xl font-bold tracking-tight truncate">{agent.name}</h1>
+                <Badge variant={agent.isActive ? "default" : "secondary"} className="text-xs shrink-0">
+                  {agent.isActive ? "Actif" : "Inactif"}
+                </Badge>
+              </div>
+              <p className="text-muted-foreground mt-0.5 text-xs md:text-sm">Configurez le comportement de votre agent IA.</p>
             </div>
-            <p className="text-muted-foreground mt-1 text-sm">Configurez le comportement de votre agent IA.</p>
-          </div>
-          <div className="flex flex-col items-end gap-2 shrink-0">
-            {/* Disable / Enable toggle — always visible */}
+            {/* Activate / Deactivate — always visible */}
             <Button
               variant="outline"
               size="sm"
               onClick={handleToggleActive}
               disabled={togglingActive}
-              className={form.watch("isActive") ? "text-amber-600 border-amber-300 hover:bg-amber-50" : "text-green-600 border-green-300 hover:bg-green-50"}
+              className={`shrink-0 text-xs md:text-sm ${form.watch("isActive") ? "text-amber-600 border-amber-300 hover:bg-amber-50" : "text-green-600 border-green-300 hover:bg-green-50"}`}
             >
-              {togglingActive ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <PowerOff className="w-4 h-4 mr-1" />}
+              {togglingActive ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <PowerOff className="w-3.5 h-3.5 mr-1" />}
               {form.watch("isActive") ? "Désactiver" : "Activer"}
             </Button>
+          </div>
 
+          {/* Row 2: WhatsApp status bar */}
+          <div className="flex flex-wrap items-center gap-2">
             {isConnected ? (
-              <div className="flex flex-wrap items-center justify-end gap-2">
-                <div className="flex items-center gap-2 text-sm text-primary border border-primary/30 bg-primary/5 rounded-lg px-3 py-1.5">
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span className="font-medium">{a.whatsappPhone || "Connecté"}</span>
+              <>
+                <div className="flex items-center gap-1.5 text-xs text-primary border border-primary/30 bg-primary/5 rounded-lg px-2.5 py-1.5 shrink-0">
+                  <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                  <span className="font-medium truncate max-w-[120px] md:max-w-none">{a.whatsappPhone || "Connecté"}</span>
                 </div>
-                {/* Disconnect: stops socket but keeps credentials */}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleDisconnect}
-                  disabled={disconnecting}
-                  className="text-destructive hover:text-destructive"
-                >
-                  {disconnecting ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <XCircle className="w-4 h-4 mr-1" />}
+                <Button variant="ghost" size="sm" onClick={handleDisconnect} disabled={disconnecting}
+                  className="text-destructive hover:text-destructive text-xs h-8 px-2">
+                  {disconnecting ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <XCircle className="w-3.5 h-3.5 mr-1" />}
                   Déconnecter
                 </Button>
-                {/* Clear session: stops socket AND deletes credentials from DB */}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleClearSession}
-                  disabled={clearingSession}
-                  className="text-destructive hover:text-destructive"
-                >
-                  {clearingSession ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Trash2 className="w-4 h-4 mr-1" />}
+                <Button variant="ghost" size="sm" onClick={handleClearSession} disabled={clearingSession}
+                  className="text-destructive hover:text-destructive text-xs h-8 px-2">
+                  {clearingSession ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Trash2 className="w-3.5 h-3.5 mr-1" />}
                   Effacer session
                 </Button>
-              </div>
+              </>
             ) : (
-              <Button onClick={openConnectDialog} className="gap-2">
-                <QrCode className="w-4 h-4" />Connecter WhatsApp
+              <Button onClick={openConnectDialog} size="sm" className="gap-1.5 text-xs h-8">
+                <QrCode className="w-3.5 h-3.5" />Connecter WhatsApp
               </Button>
             )}
           </div>

@@ -74,4 +74,28 @@ router.get("/stats", async (_req, res) => {
   });
 });
 
+// GET /api/admin/agents — all agents with owner info
+router.get("/agents", async (_req, res) => {
+  const rows = await db
+    .select({
+      id: agentsTable.id,
+      name: agentsTable.name,
+      model: agentsTable.model,
+      isActive: agentsTable.isActive,
+      whatsappConnected: agentsTable.whatsappConnected,
+      whatsappPhone: agentsTable.whatsappPhone,
+      createdAt: agentsTable.createdAt,
+      userName: usersTable.name,
+      userEmail: usersTable.email,
+    })
+    .from(agentsTable)
+    .leftJoin(usersTable, eq(agentsTable.userId, usersTable.id))
+    .orderBy(agentsTable.createdAt);
+
+  return res.json(rows.map(r => ({
+    ...r,
+    createdAt: r.createdAt instanceof Date ? r.createdAt.toISOString() : r.createdAt,
+  })));
+});
+
 export default router;
