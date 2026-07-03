@@ -17,9 +17,10 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app: Express = express();
 
 // ─── Trust proxy (TLS terminated at edge) ─────────────────────────────────────
-if (process.env["NODE_ENV"] === "production") {
-  app.set("trust proxy", 1);
-}
+// Always enable — Replit terminates TLS via its proxy in both dev and production.
+// Without this, express-rate-limit sees the Replit proxy IP, and secure cookies
+// are not sent over the HTTPS connection perceived by the browser.
+app.set("trust proxy", 1);
 
 // ─── Security headers (Helmet) ────────────────────────────────────────────────
 app.use(
@@ -54,8 +55,15 @@ app.use(
       if (!origin) return callback(null, true);
       // Only allow explicitly whitelisted origins — never wildcard with credentials
       if (explicitOrigins.length > 0 && explicitOrigins.includes(origin)) return callback(null, true);
-      // Localhost for local dev (never in production — trust proxy is set there)
-      if (process.env["NODE_ENV"] !== "production" && /^https?:\/\/localhost(:\d+)?$/.test(origin)) {
+      // Localhost for local dev
+      if (/^https?:\/\/localhost(:\d+)?$/.test(origin)) {
+        return callback(null, true);
+      }
+      // Replit preview/dev domains — safe to allow in non-production environments
+      if (
+        process.env["NODE_ENV"] !== "production" &&
+        /^https:\/\/[a-z0-9-]+\.replit\.dev$/.test(origin)
+      ) {
         return callback(null, true);
       }
       callback(new Error(`CORS: origin not allowed — ${origin}`));
@@ -109,7 +117,10 @@ app.use(
       httpOnly: true,
       maxAge: 7 * 24 * 60 * 60 * 1000,
       sameSite: "lax",
-      secure: process.env["NODE_ENV"] === "production",
+      // Mark secure whenever the app runs on Replit (always HTTPS) or in production.
+      // Without this, browsers refuse to send the session cookie over the HTTPS proxy.
+      secure:
+        process.env["NODE_ENV"] === "production" || !!process.env["REPL_ID"],
     },
   }),
 );

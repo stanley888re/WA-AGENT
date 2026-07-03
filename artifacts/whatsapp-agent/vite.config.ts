@@ -57,6 +57,9 @@ export default defineConfig({
       "/api": {
         target: "http://localhost:8080",
         changeOrigin: true,
+        // Override Origin so the API always sees a localhost origin —
+        // avoids CORS rejection when the browser accesses via *.replit.dev
+        headers: { origin: "http://localhost:5000" },
       },
     },
   },
