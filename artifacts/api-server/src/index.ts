@@ -4,6 +4,18 @@ import { runMigrations } from "./lib/migrate";
 import { autoReconnectAgents } from "./routes/agents";
 import { startDailySummaryScheduler } from "./services/dailySummary";
 
+// Global safety nets: a single WhatsApp agent error (decrypt failure, socket
+// glitch, etc.) must never take down the whole platform for every tenant.
+// Without these, an unhandled promise rejection anywhere (e.g. inside a
+// Baileys event handler) crashes the entire Node process by default.
+process.on("unhandledRejection", (reason) => {
+  logger.error({ err: reason }, "Unhandled promise rejection (ignored, server continues)");
+});
+
+process.on("uncaughtException", (err) => {
+  logger.error({ err }, "Uncaught exception (ignored, server continues)");
+});
+
 const rawPort = process.env["PORT"];
 
 if (!rawPort) {

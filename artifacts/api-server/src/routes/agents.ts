@@ -36,8 +36,14 @@ export async function autoReconnectAgents(): Promise<void> {
       .then(rows => rows.filter(a => a.whatsappConnected && a.isActive));
     if (connectedAgents.length === 0) return;
     console.log(`[Agents] Auto-reconnecting ${connectedAgents.length} agent(s)...`);
-    for (const agent of connectedAgents) {
+    for (const [index, agent] of connectedAgents.entries()) {
       try {
+        // Stagger session startup so we don't spike CPU/RAM with many
+        // concurrent Baileys sockets connecting at the exact same instant
+        // right after boot (a common cause of crashes on low-memory hosts).
+        if (index > 0) {
+          await new Promise((resolve) => setTimeout(resolve, 4000));
+        }
         await waManager.startSession(agent.id);
         console.log(`[Agents] Auto-reconnect started for agent ${agent.id} (${agent.name})`);
       } catch (err) {
