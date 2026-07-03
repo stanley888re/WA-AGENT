@@ -1,0 +1,170 @@
+RÉCAPITULATIF — Mise en route de WA Agent sur Render.com (déploiement wa-agent-1.onrender.com)
+================================================================================
+Ce fichier liste, dans l'ordre, tous les problèmes rencontrés depuis le début
+du déploiement sur Render et les corrections apportées pour que l'application
+fonctionne correctement.
+
+--------------------------------------------------------------------------------
+1. PAGE BLANCHE AU CHARGEMENT (login/dashboard invisibles)
+--------------------------------------------------------------------------------
+Symptôme : le site s'ouvrait sur une page blanche, rien ne s'affichait.
+
+Cause réelle : le middleware CORS était appliqué à TOUTES les routes du
+serveur (y compris les fichiers JS/CSS du frontend). Vite ajoute un attribut
+"crossorigin" sur les balises <script>/<link>, ce qui force le navigateur à
+envoyer un en-tête Origin même pour des requêtes vers le même domaine. Le
+serveur ne reconnaissait pas cet Origin, rejetait la requête en levant une
+erreur, et Express renvoyait une réponse JSON d'erreur (500) à la place du
+fichier JS/CSS attendu → le navigateur ne pouvait pas exécuter l'app.
+
+Correction :
+- Le middleware CORS est désormais limité aux routes /api uniquement (les
+  fichiers statiques ne passent plus par cette vérification).
+- La logique CORS compare l'Origin reçu à l'hôte réel de la requête
+  (protocole + host) pour toujours autoriser les appels "même origine".
+- En cas d'origine non reconnue, le serveur répond proprement
+  (callback(null, { origin: false })) au lieu de lever une exception.
+
+Fichier modifié : artifacts/api-server/src/app.ts
+
+--------------------------------------------------------------------------------
+2. SERVEUR QUI PLANTAIT ENTIÈREMENT À CAUSE D'UNE ERREUR SUR UN SEUL AGENT
+--------------------------------------------------------------------------------
+Cause : Node.js arrête tout le processus si une erreur asynchrone
+("unhandledRejection") ou une exception non interceptée survient quelque part
+— par exemple un problème réseau sur la connexion WhatsApp d'un seul agent
+pouvait faire tomber TOUT le serveur (tous les autres agents avec).
+
+Correction : ajout de gestionnaires globaux `unhandledRejection` et
+`uncaughtException` qui journalisent l'erreur sans tuer le processus.
+
+Fichier modifié : artifacts/api-server/src/index.ts
+
+--------------------------------------------------------------------------------
+3. PIC DE CHARGE AU DÉMARRAGE (CPU/RAM) SUR L'HÉBERGEMENT GRATUIT RENDER
+--------------------------------------------------------------------------------
+Cause : au redémarrage du serveur, tous les agents WhatsApp connectés
+tentaient de se reconnecter EN MÊME TEMPS. Sur l'offre gratuite Render (RAM
+et CPU très limités), plusieurs connexions Baileys simultanées pouvaient
+saturer les ressources et provoquer un crash au démarrage.
+
+Correction : un délai de 4 secondes est désormais appliqué entre chaque
+reconnexion d'agent au démarrage, pour étaler la charge.
+
+Fichier modifié : artifacts/api-server/src/routes/agents.ts (fonction
+autoReconnectAgents)
+
+--------------------------------------------------------------------------------
+4. "TEST ÉCHOUÉ" / "Unexpected end of JSON input" SUR LE BOUTON "TESTER L'AGENT"
+   + RÉPONSES WHATSAPP "Je suis désolé, je rencontre un problème technique"
+--------------------------------------------------------------------------------
+Cause n°1 (bug de code) : l'appel à l'API IA externe
+(https://delfaapiai.vercel.app/ai/copilot) faisait `await res.json()`
+directement. Si l'API externe renvoyait parfois un corps de réponse vide ou
+incomplet (aléa réseau, lenteur), cela provoquait un plantage avec le message
+cryptique "Unexpected end of JSON input", visible par l'utilisateur final.
+
+Correction : la réponse est maintenant d'abord lue comme texte, puis
+convertie en JSON avec gestion d'erreur claire. Une nouvelle tentative
+automatique (retry, avec 1 seconde d'attente) est effectuée avant d'abandonner.
+Corrigé aux deux endroits du code qui appellent l'API IA.
+
+Fichier modifié : artifacts/api-server/src/services/whatsapp.ts
+(fonctions callAI et tryFallbackAppointmentExtract)
+
+Cause n°2 (configuration manquante) : la variable d'environnement
+AI_API_URL n'était pas configurée sur Render (elle est listée en
+`sync: false` dans render.yaml, donc Render ne la définit jamais
+automatiquement — il faut la saisir manuellement dans le dashboard Render).
+Sans cette variable, aucun appel à l'IA n'est possible.
+
+Variables à vérifier/renseigner manuellement sur Render
+(Dashboard → service → Environment) :
+  - AI_API_URL             → https://delfaapiai.vercel.app/ai/copilot
+  - DATABASE_URL ou SUPABASE_DATABASE_URL → chaîne de connexion PostgreSQL
+  - SESSION_SECRET         → chaîne aléatoire longue
+  - CLOUDINARY_CLOUD_NAME
+  - CLOUDINARY_API_KEY
+  - CLOUDINARY_API_SECRET
+  - ADMIN_EMAILS           → emails admin séparés par des virgules
+  - ALLOWED_ORIGINS        → https://wa-agent-1.onrender.com
+
+--------------------------------------------------------------------------------
+5. LE BOT RÉPONDAIT DEUX FOIS PUIS S'ARRÊTAIT COMPLÈTEMENT DE RÉPONDRE
+--------------------------------------------------------------------------------
+Cause (la plus importante trouvée) : l'environnement de développement
+(Replit, ici) et le déploiement de production (Render) utilisent la MÊME
+base de données Supabase. Comme les sessions WhatsApp (Baileys) sont
+stockées dans cette base pour survivre aux redémarrages, chaque redémarrage
+du serveur en développement reconnectait AUSSI automatiquement les agents
+WhatsApp déjà actifs en production — créant deux connexions WhatsApp
+simultanées sur le même numéro (le même compte). WhatsApp tolère ça un
+instant, puis une des deux connexions se met à ignorer les messages ou à ne
+plus pouvoir répondre → exactement le symptôme observé ("deux réponses puis
+plus rien", "un agent d'un autre service qui répondait").
+
+Correction : la reconnexion automatique des agents au démarrage
+(autoReconnectAgents) ne s'exécute désormais QUE si NODE_ENV=production,
+donc plus jamais depuis cet environnement de développement.
+
+Fichier modifié : artifacts/api-server/src/routes/agents.ts
+
+Action recommandée côté utilisateur : dans WhatsApp → Appareils connectés,
+vérifier qu'il n'y a qu'UN SEUL appareil lié à l'agent (ex. "vente") et
+supprimer tout appareil fantôme/en double (ex. "Stanley stawa" s'il apparaît
+comme déconnecté ou en doublon).
+
+--------------------------------------------------------------------------------
+6. LE BOT SE DÉCONNECTE "TOUT SEUL" ET NE RÉPOND PLUS DU TOUT (en cours)
+--------------------------------------------------------------------------------
+Symptôme observé : après un échange normal, l'utilisateur envoie plusieurs
+messages à la suite (ex. la même info de rendez-vous répétée 4 fois) et le
+bot ne répond plus à aucun d'entre eux, sans redémarrer tout seul.
+
+Renforcements apportés en prévention (l'hébergement gratuit Render a très
+peu de RAM/CPU partagés, donc la stabilité de la connexion WhatsApp y est
+plus fragile que sur un serveur classique) :
+
+a) Reconnexion avec délai progressif (backoff exponentiel) : si la
+   connexion WhatsApp se coupe plusieurs fois de suite, le délai avant
+   nouvelle tentative augmente (5s → 10s → 20s → 40s, plafonné à 60s) au
+   lieu de retenter toutes les 5 secondes sans limite — ce qui évitait de
+   saturer un hébergement déjà en difficulté avec des reconnexions en
+   boucle rapprochée.
+
+b) File d'attente par conversation : si un client envoie plusieurs messages
+   très rapprochés (comme dans le cas observé), ils sont maintenant traités
+   un par un dans l'ordre au lieu de déclencher plusieurs appels IA en
+   parallèle — ce qui pouvait faire grimper la consommation mémoire et
+   bloquer/tuer le processus sur l'offre gratuite Render.
+
+Fichier modifié : artifacts/api-server/src/services/whatsapp.ts
+
+Point important non résolu à ce stade : je n'ai pas d'accès direct aux logs
+du service Render de l'utilisateur (contrairement aux logs Replit). Si le
+problème persiste après le prochain déploiement, il faudra consulter les
+logs Render (Dashboard → service → Logs) au moment précis de la coupure
+pour confirmer s'il s'agit d'un crash mémoire (OOM), d'une mise en veille du
+service gratuit (spin-down après inactivité), ou d'une autre cause.
+
+--------------------------------------------------------------------------------
+RÉSUMÉ DES FICHIERS MODIFIÉS DEPUIS LE DÉBUT
+--------------------------------------------------------------------------------
+- artifacts/api-server/src/app.ts               → CORS scindé, limité à /api
+- artifacts/api-server/src/index.ts             → gestion globale des erreurs
+- artifacts/api-server/src/routes/agents.ts     → reconnexion échelonnée au
+                                                    démarrage + limitée à la prod
+- artifacts/api-server/src/services/whatsapp.ts → appels IA résilients (retry
+                                                    + parsing JSON sécurisé),
+                                                    backoff de reconnexion,
+                                                    file d'attente par conversation
+
+--------------------------------------------------------------------------------
+À FAIRE CÔTÉ RENDER
+--------------------------------------------------------------------------------
+1. Republier (redeploy) le service avec le code le plus récent.
+2. Vérifier que toutes les variables d'environnement listées en section 4
+   sont bien renseignées dans le dashboard Render.
+3. Vérifier dans WhatsApp qu'un seul appareil est lié par agent.
+4. Si le bot s'arrête encore de répondre après ces changements, consulter
+   les logs Render au moment de l'incident et les partager pour diagnostic.

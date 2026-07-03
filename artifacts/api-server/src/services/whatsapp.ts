@@ -467,6 +467,17 @@ class WhatsAppManager extends EventEmitter {
   private sockets = new Map<number, BaileysSocket>();
   private reconnectTimers = new Map<number, ReturnType<typeof setTimeout>>();
   private sessionsDir = "/tmp/wa-sessions";
+  /** Consecutive disconnect count per agent — used for reconnect backoff so a
+   *  flaky connection doesn't hammer the free-tier host with rapid reconnect
+   *  attempts (a common cause of resource exhaustion / crash loops). Reset to
+   *  0 once the socket successfully reaches "open". */
+  private disconnectStreak = new Map<number, number>();
+  /** Per-conversation processing lock. If a user sends several messages in a
+   *  burst (e.g. resending the same info), we must process them one at a
+   *  time instead of firing overlapping AI calls concurrently — on a
+   *  memory-constrained host that pile-up is what makes the process stall or
+   *  get killed and stop responding entirely. */
+  private processingQueues = new Map<string, Promise<void>>();
   /** Monotonically-incrementing counter per agent.
    *  A _initBaileys call that holds stale generation will self-abort,
    *  preventing zombie sockets from overwriting state after stopSession. */
@@ -1029,7 +1040,15 @@ class WhatsAppManager extends EventEmitter {
         this.sockets.delete(agentId);
 
         if (shouldReconnect) {
-          console.log(`[WA] Agent ${agentId} disconnected (code=${code}), reconnecting in 5s...`);
+          // Exponential backoff (5s → 10s → 20s → 40s, capped at 60s) so a
+          // flapping connection doesn't hammer the free-tier host with rapid
+          // reconnect attempts — repeated reconnects each spin up a fresh
+          // Baileys socket + auth state load, which under memory pressure is
+          // exactly what turns a transient blip into the bot going silent.
+          const streak = (this.disconnectStreak.get(agentId) ?? 0) + 1;
+          this.disconnectStreak.set(agentId, streak);
+          const backoffMs = Math.min(5000 * Math.pow(2, streak - 1), 60000);
+          console.log(`[WA] Agent ${agentId} disconnected (code=${code}), reconnecting in ${Math.round(backoffMs / 1000)}s (attempt ${streak})...`);
           const nextGen = this._nextGen(agentId);
           const timer = setTimeout(() => {
             this.reconnectTimers.delete(agentId);
@@ -1038,11 +1057,12 @@ class WhatsAppManager extends EventEmitter {
               session.status = "error";
               session.lastError = String(err);
             });
-          }, 5000);
+          }, backoffMs);
           this.reconnectTimers.set(agentId, timer);
         } else {
           console.log(`[WA] Agent ${agentId} logged out`);
           this.sessions.delete(agentId);
+          this.disconnectStreak.delete(agentId);
           db.update(agentsTable).set({ whatsappConnected: false, whatsappPhone: null })
             .where(eq(agentsTable.id, agentId)).catch(() => {});
         }
@@ -1054,6 +1074,7 @@ class WhatsAppManager extends EventEmitter {
         session.status = "connected";
         session.qrCode = null;
         session.phone = phone;
+        this.disconnectStreak.delete(agentId);
         console.log(`[WA] Agent ${agentId} connected ✓ phone=${phone}`);
         this.emit("connected", agentId, phone);
       }
@@ -1104,9 +1125,26 @@ class WhatsAppManager extends EventEmitter {
         const senderName = msg.pushName ?? jidToPhone(jid);
         console.log(`[WA] ← New message from ${senderName} (${jid}): "${text.slice(0, 80)}"`);
 
-        this._processMessage(agentId, sock, jid, senderName, text).catch(err => {
-          console.error(`[WA] _processMessage error for agent ${agentId}:`, err);
-        });
+        // Serialize processing per conversation: if the client sends several
+        // messages in a burst (e.g. resending the same info), queue them
+        // instead of firing overlapping AI calls in parallel. On a
+        // memory-constrained free-tier host, that pile-up is what stalls or
+        // kills the process — the bot then looks like it "just stops
+        // responding" even though nothing crashed from the user's point of view.
+        const queueKey = `${agentId}:${jid}`;
+        const prior = this.processingQueues.get(queueKey) ?? Promise.resolve();
+        const next = prior
+          .catch(() => {})
+          .then(() => this._processMessage(agentId, sock, jid, senderName, text))
+          .catch(err => {
+            console.error(`[WA] _processMessage error for agent ${agentId}:`, err);
+          })
+          .finally(() => {
+            if (this.processingQueues.get(queueKey) === next) {
+              this.processingQueues.delete(queueKey);
+            }
+          });
+        this.processingQueues.set(queueKey, next);
       }
     });
   }
