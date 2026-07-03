@@ -48,30 +48,35 @@ const explicitOrigins = rawAllowedOrigins
   .map((o) => o.trim())
   .filter(Boolean);
 
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      // Server-to-server / curl / Postman (no Origin header)
-      if (!origin) return callback(null, true);
-      // Only allow explicitly whitelisted origins — never wildcard with credentials
-      if (explicitOrigins.length > 0 && explicitOrigins.includes(origin)) return callback(null, true);
-      // Localhost for local dev
-      if (/^https?:\/\/localhost(:\d+)?$/.test(origin)) {
-        return callback(null, true);
-      }
-      // Replit preview/dev domains — safe to allow in non-production environments.
-      // Matches any depth: uq.riker.replit.dev, foo.bar.replit.dev, etc.
-      if (
-        process.env["NODE_ENV"] !== "production" &&
-        /^https:\/\/[a-z0-9.-]+\.replit\.dev$/.test(origin)
-      ) {
-        return callback(null, true);
-      }
-      callback(new Error(`CORS: origin not allowed — ${origin}`));
-    },
-    credentials: true,
-  }),
-);
+// Scoped to /api only — static assets (JS/CSS/HTML) are same-origin and must
+// never go through CORS. Vite tags <script>/<link> with `crossorigin`, which
+// makes browsers send an Origin header even for same-origin asset requests;
+// if CORS were applied globally, an unlisted origin would cause the app's
+// error handler to return a JSON error body in place of the JS/CSS file
+// (500 + wrong MIME type), breaking the whole page.
+const corsMiddleware = cors({
+  origin: (origin, callback) => {
+    // Server-to-server / curl / Postman (no Origin header)
+    if (!origin) return callback(null, true);
+    // Only allow explicitly whitelisted origins — never wildcard with credentials
+    if (explicitOrigins.length > 0 && explicitOrigins.includes(origin)) return callback(null, true);
+    // Localhost for local dev
+    if (/^https?:\/\/localhost(:\d+)?$/.test(origin)) {
+      return callback(null, true);
+    }
+    // Replit preview/dev domains — safe to allow in non-production environments.
+    // Matches any depth: uq.riker.replit.dev, foo.bar.replit.dev, etc.
+    if (
+      process.env["NODE_ENV"] !== "production" &&
+      /^https:\/\/[a-z0-9.-]+\.replit\.dev$/.test(origin)
+    ) {
+      return callback(null, true);
+    }
+    callback(new Error(`CORS: origin not allowed — ${origin}`));
+  },
+  credentials: true,
+});
+app.use("/api", corsMiddleware);
 
 // ─── Request logging ──────────────────────────────────────────────────────────
 app.use(
