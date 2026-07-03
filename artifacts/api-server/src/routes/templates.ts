@@ -35,14 +35,15 @@ router.post("/", async (req, res) => {
 
   // Validate agentId ownership — prevent IDOR (linking template to another user's agent)
   let resolvedAgentId: number | null = null;
-  if (agentId) {
+  if (agentId !== undefined && agentId !== null) {
     const parsed = Number(agentId);
-    if (!isNaN(parsed) && parsed > 0) {
-      const [owned] = await db.select({ id: agentsTable.id }).from(agentsTable)
-        .where(and(eq(agentsTable.id, parsed), eq(agentsTable.userId, userId)));
-      if (!owned) return res.status(403).json({ error: "Agent introuvable ou accès refusé" });
-      resolvedAgentId = parsed;
+    if (!Number.isInteger(parsed) || parsed <= 0) {
+      return res.status(400).json({ error: "agentId doit être un entier positif" });
     }
+    const [owned] = await db.select({ id: agentsTable.id }).from(agentsTable)
+      .where(and(eq(agentsTable.id, parsed), eq(agentsTable.userId, userId)));
+    if (!owned) return res.status(403).json({ error: "Agent introuvable ou accès refusé" });
+    resolvedAgentId = parsed;
   }
 
   const [item] = await db.insert(templatesTable).values({

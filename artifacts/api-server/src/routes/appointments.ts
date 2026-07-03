@@ -49,7 +49,10 @@ router.post("/", async (req, res) => {
     return res.status(400).json({ error: "agentId, clientName, date et time sont requis" });
   }
   const ALLOWED_STATUSES = ["confirmed", "cancelled", "pending"];
-  const resolvedStatus = ALLOWED_STATUSES.includes(status ?? "") ? status! : "confirmed";
+  if (status !== undefined && !ALLOWED_STATUSES.includes(status)) {
+    return res.status(400).json({ error: `Statut invalide. Valeurs acceptées : ${ALLOWED_STATUSES.join(", ")}` });
+  }
+  const resolvedStatus = status ?? "confirmed";
   const agentIds = await getUserAgentIds(userId);
   if (!agentIds.includes(Number(agentId))) {
     return res.status(403).json({ error: "Accès refusé à cet agent" });
@@ -76,13 +79,16 @@ router.patch("/:id", async (req, res) => {
     clientName?: string; clientPhone?: string; date?: string; time?: string; notes?: string; status?: string;
   };
   const ALLOWED_STATUSES = ["confirmed", "cancelled", "pending"];
+  if (status !== undefined && !ALLOWED_STATUSES.includes(status)) {
+    return res.status(400).json({ error: `Statut invalide. Valeurs acceptées : ${ALLOWED_STATUSES.join(", ")}` });
+  }
   const [appt] = await db.update(appointmentsTable).set({
     ...(clientName !== undefined && { clientName: String(clientName).slice(0, 200) }),
     ...(clientPhone !== undefined && { clientPhone: clientPhone ? String(clientPhone).slice(0, 50) : null }),
     ...(date !== undefined && { date: String(date).slice(0, 20) }),
     ...(time !== undefined && { time: String(time).slice(0, 10) }),
     ...(notes !== undefined && { notes: notes ? String(notes).slice(0, 2000) : null }),
-    ...(status !== undefined && ALLOWED_STATUSES.includes(status) && { status }),
+    ...(status !== undefined && { status }),
   }).where(and(eq(appointmentsTable.id, id), inArray(appointmentsTable.agentId, agentIds))).returning();
   if (!appt) return res.status(404).json({ error: "Not found" });
   return res.json(apptToJson(appt));

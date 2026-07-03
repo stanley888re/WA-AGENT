@@ -4,3 +4,4 @@
 - [WA session persistence](wa-session-persistence.md) — Baileys auth state stored in PostgreSQL (whatsapp_sessions table), not /tmp; required for Render where /tmp is ephemeral.
 - [WA pair-code flow](wa-pair-code.md) — Pairing code requires fresh credentials + BufferJSON/proto from Baileys import; /pair route always clears creds first; generation counter prevents zombie sockets.
 - [Security hardening](security-hardening.md) — Helmet, rate-limit, strict CORS, zod validation on auth, timingSafeEqual, ADMIN_EMAILS+AI_API_URL in env vars; zod must be a direct dep of api-server (esbuild won't resolve workspace-only transitive zod/v4).
+- [Workflow restart EADDRINUSE](workflow-restart.md) — fuser -k in workflow command (not retry loop) reliably clears zombie ports on restart.
