@@ -218,13 +218,32 @@ export async function callAI(
 
   console.log(`[AI] Calling API for message: "${userMessage.slice(0, 60)}"`);
 
+  // The external AI API occasionally returns an empty/malformed body (network
+  // hiccup, cold start on their side, etc.) — retry once before giving up
+  // rather than surfacing a cryptic "Unexpected end of JSON input" to users.
+  const fetchAiWithRetry = async (signal: AbortSignal): Promise<{ answer?: string; response?: string; text?: string }> => {
+    let lastErr: unknown;
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const res = await fetch(apiUrl, { signal });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const bodyText = await res.text();
+        if (!bodyText.trim()) throw new Error("Empty body from AI API");
+        return JSON.parse(bodyText) as { answer?: string; response?: string; text?: string };
+      } catch (err) {
+        lastErr = err;
+        console.warn(`[AI] Attempt ${attempt}/2 failed: ${err instanceof Error ? err.message : String(err)}`);
+        if (attempt < 2) await new Promise((r) => setTimeout(r, 1000));
+      }
+    }
+    throw lastErr instanceof Error ? lastErr : new Error("AI API call failed after retry");
+  };
+
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 30000);
 
   try {
-    const res = await fetch(apiUrl, { signal: controller.signal });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json() as { answer?: string; response?: string; text?: string };
+    const data = await fetchAiWithRetry(controller.signal);
     const raw = data.answer ?? data.response ?? data.text ?? "";
     if (!raw) throw new Error("Empty response from AI");
     // Extract APPT marker BEFORE stripMarkdown (code blocks would erase it)
@@ -384,7 +403,9 @@ export async function tryFallbackAppointmentExtract(
     const res = await fetch(apiUrl, { signal: controller.signal });
     clearTimeout(timeout);
     if (!res.ok) return null;
-    const data = await res.json() as { answer?: string; response?: string; text?: string };
+    const bodyText = await res.text();
+    if (!bodyText.trim()) return null;
+    const data = JSON.parse(bodyText) as { answer?: string; response?: string; text?: string };
     const raw = (data.answer ?? data.response ?? data.text ?? "").trim();
     if (!raw || raw === "NON" || raw.toLowerCase().includes("non")) return null;
     // Try to parse JSON from response
