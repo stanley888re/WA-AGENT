@@ -54,29 +54,44 @@ const explicitOrigins = rawAllowedOrigins
 // if CORS were applied globally, an unlisted origin would cause the app's
 // error handler to return a JSON error body in place of the JS/CSS file
 // (500 + wrong MIME type), breaking the whole page.
-const corsMiddleware = cors({
-  origin: (origin, callback) => {
+//
+// The frontend is always served by this same Express app (same origin as the
+// API), so requests whose Origin matches the request's own host must always
+// be allowed automatically — this must not depend on an operator remembering
+// to set ALLOWED_ORIGINS correctly on every host (Render, Replit, etc.),
+// which previously caused every /api call to fail with a CORS error there.
+const corsOptionsDelegate = (
+  req: Request,
+  callback: (err: Error | null, options?: cors.CorsOptions) => void,
+) => {
+  const origin = req.headers.origin;
+  const selfOrigin = `${req.protocol}://${req.get("host")}`;
+
+  let allowed = false;
+  if (!origin) {
     // Server-to-server / curl / Postman (no Origin header)
-    if (!origin) return callback(null, true);
+    allowed = true;
+  } else if (origin === selfOrigin) {
+    // Same-origin request (frontend calling its own API) — always allowed
+    allowed = true;
+  } else if (explicitOrigins.includes(origin)) {
     // Only allow explicitly whitelisted origins — never wildcard with credentials
-    if (explicitOrigins.length > 0 && explicitOrigins.includes(origin)) return callback(null, true);
+    allowed = true;
+  } else if (/^https?:\/\/localhost(:\d+)?$/.test(origin)) {
     // Localhost for local dev
-    if (/^https?:\/\/localhost(:\d+)?$/.test(origin)) {
-      return callback(null, true);
-    }
+    allowed = true;
+  } else if (
+    process.env["NODE_ENV"] !== "production" &&
+    /^https:\/\/[a-z0-9.-]+\.replit\.dev$/.test(origin)
+  ) {
     // Replit preview/dev domains — safe to allow in non-production environments.
     // Matches any depth: uq.riker.replit.dev, foo.bar.replit.dev, etc.
-    if (
-      process.env["NODE_ENV"] !== "production" &&
-      /^https:\/\/[a-z0-9.-]+\.replit\.dev$/.test(origin)
-    ) {
-      return callback(null, true);
-    }
-    callback(new Error(`CORS: origin not allowed — ${origin}`));
-  },
-  credentials: true,
-});
-app.use("/api", corsMiddleware);
+    allowed = true;
+  }
+
+  callback(null, { origin: allowed, credentials: true });
+};
+app.use("/api", cors(corsOptionsDelegate));
 
 // ─── Request logging ──────────────────────────────────────────────────────────
 app.use(

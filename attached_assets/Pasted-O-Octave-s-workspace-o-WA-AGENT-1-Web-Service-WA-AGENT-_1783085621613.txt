@@ -1,0 +1,102 @@
+O
+Octave's workspace
+
+
+o
+WA-AGENT-1
+
+Web Service
+WA-AGENT-1
+Node
+Free
+Upgrade your instance
+
+Connect
+
+Manual Deploy
+Service ID:
+srv-d93qjihkh4rs73dr76vg
+
+stanley888re / WA-AGENT
+main
+https://wa-agent-1.onrender.com
+
+Your free instance will spin down with inactivity, which can delay requests by 50 seconds or more.
+Upgrade now
+July 3, 2026 at 2:31 PM
+live
+0e395b0
+Limit CORS checks to API routes to prevent asset loading errors Move CORS middleware to only apply to /api routes, resolving 500 errors on static asset loading caused by cross-origin checks on Vite-generated script/link tags. Replit-Commit-Author: Agent Replit-Commit-Session-Id: 4be96b5c-2d56-40c3-b2b6-d0aa3b30cc02 Replit-Commit-Checkpoint-Type: full_checkpoint Replit-Commit-Event-Id: 1f00c34f-ce4e-4941-9511-42600c3fb54a Replit-Commit-Screenshot-Url: https://storage.googleapis.com/screenshot-production-us-central1/f235b31b-cd32-46ae-a28e-d73c64d1f927/4be96b5c-2d56-40c3-b2b6-d0aa3b30cc02/wz0wP3j
+
+All logs
+Search
+Search logs
+
+Live tail
+
+
+
+      privKey: <Buffer 60 e9 d5 de 28 87 76 d2 b5 3f 2a 78 5b 95 88 25 03 68 b8 10 be e7 ba 7b 9b 60 c6 be 9a 09 6a 5e>
+    },
+    lastRemoteEphemeralKey: <Buffer 05 ce 0f f4 ef ac a3 58 91 5a 31 bd a2 43 dc 38 1b ba d2 55 e9 93 48 68 6d 00 1c 10 c7 c8 cc ab 77>,
+    previousCounter: 0,
+    rootKey: <Buffer 5b a1 9e 2b 50 fd b9 ae b8 d8 0f 63 b4 b6 33 5a d6 ab 2d d5 43 57 0c 33 f3 cf 0f 33 ac ba f5 e7>
+  },
+  indexInfo: {
+    baseKey: <Buffer 05 97 0a 12 f7 77 42 08 c6 b8 8c 8e 7b 09 5a 5f 97 f1 c6 cd 24 ff 3a 81 6a e9 45 72 12 98 dd ed 59>,
+    baseKeyType: 1,
+    closed: -1,
+    used: 1783085591581,
+    created: 1783085591581,
+    remoteIdentityKey: <Buffer 05 ad 28 c7 05 16 46 c7 99 b9 5b 22 a3 0d b1 42 10 08 5b d7 a4 42 7f 28 a0 9d fd c9 16 50 cd d7 16>
+  },
+  pendingPreKey: {
+    signedKeyId: 16231794,
+    baseKey: <Buffer 05 97 0a 12 f7 77 42 08 c6 b8 8c 8e 7b 09 5a 5f 97 f1 c6 cd 24 ff 3a 81 6a e9 45 72 12 98 dd ed 59>,
+    preKeyId: 2215451
+  }
+}
+Removing old closed session: SessionEntry {
+  _chains: {
+    'BciAMkmx5ep7EFaGFp8YRgBAOpK7N/G/rvbqmShzT4VS': { chainKey: [Object], chainType: 1, messageKeys: {} }
+  },
+  registrationId: 545333370,
+  currentRatchet: {
+    ephemeralKeyPair: {
+      pubKey: <Buffer 05 c8 80 32 49 b1 e5 ea 7b 10 56 86 16 9f 18 46 00 40 3a 92 bb 37 f1 bf ae f6 ea 99 28 73 4f 85 52>,
+      privKey: <Buffer c8 96 96 1a bc 6b 44 cd 9f 32 ed 3f 0c fb 14 9c 48 fd 86 29 04 2a f7 cb 4a 44 e8 5d cd b0 3d 73>
+    },
+    lastRemoteEphemeralKey: <Buffer 05 ce 0f f4 ef ac a3 58 91 5a 31 bd a2 43 dc 38 1b ba d2 55 e9 93 48 68 6d 00 1c 10 c7 c8 cc ab 77>,
+    previousCounter: 0,
+    rootKey: <Buffer 33 49 3b c1 d6 e2 0a 99 86 43 71 8c 17 28 a6 f3 32 6e e7 67 b5 f2 12 a4 01 23 1e 27 f7 6c ff 69>
+  },
+  indexInfo: {
+    baseKey: <Buffer 05 ea 28 0c 51 73 1f a1 73 b5 af 15 b7 88 72 8c fd 44 14 95 a8 ba 44 b3 41 71 10 8f 20 03 0e 80 34>,
+    baseKeyType: 1,
+    closed: 1783085279204,
+    used: 1783085272315,
+    created: 1783085272315,
+    remoteIdentityKey: <Buffer 05 ad 28 c7 05 16 46 c7 99 b9 5b 22 a3 0d b1 42 10 08 5b d7 a4 42 7f 28 a0 9d fd c9 16 50 cd d7 16>
+  },
+  pendingPreKey: {
+    signedKeyId: 16231794,
+    baseKey: <Buffer 05 ea 28 0c 51 73 1f a1 73 b5 af 15 b7 88 72 8c fd 44 14 95 a8 ba 44 b3 41 71 10 8f 20 03 0e 80 34>,
+    preKeyId: 2215545
+  }
+}
+[WA] ✅ Notif admin envoyée à 2290140912272 (agent 8)
+[WA] messages.upsert type=append count=1
+[WA] Agent 8 disconnected (code=440), reconnecting in 5s...
+[WA] ⚠️ Notif admin ignorée — pas de socket actif pour agent 8 (tentative 1/3)
+[WA] Agent 23 disconnected (code=440), reconnecting in 5s...
+[WA] Agent 25 connected ✓ phone=2290192439859
+[Agents] DB updated: agent 25 connected, phone=2290192439859
+[WA] Agent 25 disconnected (code=440), reconnecting in 5s...
+[WA] ⚠️ Notif admin ignorée — pas de socket actif pour agent 8 (tentative 2/3)
+[WA] 📤 Notif admin → 2290140912272 (agent 8, tentative 3/3)
+Need better ways to work with logs? Try theRender CLI, Render MCP Server, or set up a log stream integration 
+
+0 services selected:
+
+Move
+
