@@ -59,10 +59,11 @@ app.use(
       if (/^https?:\/\/localhost(:\d+)?$/.test(origin)) {
         return callback(null, true);
       }
-      // Replit preview/dev domains — safe to allow in non-production environments
+      // Replit preview/dev domains — safe to allow in non-production environments.
+      // Matches any depth: uq.riker.replit.dev, foo.bar.replit.dev, etc.
       if (
         process.env["NODE_ENV"] !== "production" &&
-        /^https:\/\/[a-z0-9-]+\.replit\.dev$/.test(origin)
+        /^https:\/\/[a-z0-9.-]+\.replit\.dev$/.test(origin)
       ) {
         return callback(null, true);
       }
