@@ -1,6 +1,6 @@
 import { Router, Request } from "express";
 import { db } from "@workspace/db";
-import { templatesTable } from "@workspace/db";
+import { templatesTable, agentsTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 
 type Sess = { userId?: number };
@@ -28,13 +28,29 @@ router.post("/", async (req, res) => {
   const { title, content, category, shortcut, agentId } = req.body as {
     title: string; content: string; category?: string; shortcut?: string; agentId?: number;
   };
-  if (!title || !content) return res.status(400).json({ error: "title and content required" });
+  if (!title || typeof title !== "string" || title.trim().length === 0)
+    return res.status(400).json({ error: "title est requis" });
+  if (!content || typeof content !== "string" || content.trim().length === 0)
+    return res.status(400).json({ error: "content est requis" });
+
+  // Validate agentId ownership — prevent IDOR (linking template to another user's agent)
+  let resolvedAgentId: number | null = null;
+  if (agentId) {
+    const parsed = Number(agentId);
+    if (!isNaN(parsed) && parsed > 0) {
+      const [owned] = await db.select({ id: agentsTable.id }).from(agentsTable)
+        .where(and(eq(agentsTable.id, parsed), eq(agentsTable.userId, userId)));
+      if (!owned) return res.status(403).json({ error: "Agent introuvable ou accès refusé" });
+      resolvedAgentId = parsed;
+    }
+  }
+
   const [item] = await db.insert(templatesTable).values({
     userId,
-    title, content,
+    title: title.trim(), content: content.trim(),
     category: category || "Autre",
     shortcut: shortcut || null,
-    agentId: agentId || null,
+    agentId: resolvedAgentId,
   }).returning();
   return res.status(201).json(toJson(item));
 });

@@ -47,6 +47,9 @@ const uid = (req: Request): number => (req.session as Sess).userId!;
 const router = Router();
 
 router.post("/upload-image", upload.single("image"), async (req, res) => {
+  // Explicit auth guard — belt-and-suspenders alongside global middleware
+  const userId = uid(req);
+  if (!userId) return res.status(401).json({ error: "Non authentifié" });
   if (!req.file) return res.status(400).json({ error: "Aucun fichier reçu" });
   try {
     const url = await uploadToCloudinary(req.file.buffer);

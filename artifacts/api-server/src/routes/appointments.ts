@@ -48,14 +48,18 @@ router.post("/", async (req, res) => {
   if (!agentId || !clientName || !date || !time) {
     return res.status(400).json({ error: "agentId, clientName, date et time sont requis" });
   }
+  const ALLOWED_STATUSES = ["confirmed", "cancelled", "pending"];
+  const resolvedStatus = ALLOWED_STATUSES.includes(status ?? "") ? status! : "confirmed";
   const agentIds = await getUserAgentIds(userId);
-  if (!agentIds.includes(agentId)) {
+  if (!agentIds.includes(Number(agentId))) {
     return res.status(403).json({ error: "Accès refusé à cet agent" });
   }
   const [appt] = await db.insert(appointmentsTable).values({
-    agentId, userId,
-    clientName, clientPhone: clientPhone || null,
-    date, time, notes: notes || null, status: status || "confirmed",
+    agentId: Number(agentId), userId,
+    clientName: String(clientName).slice(0, 200),
+    clientPhone: clientPhone ? String(clientPhone).slice(0, 50) : null,
+    date: String(date).slice(0, 20), time: String(time).slice(0, 10),
+    notes: notes ? String(notes).slice(0, 2000) : null, status: resolvedStatus,
   }).returning();
   return res.status(201).json(apptToJson(appt));
 });
@@ -71,13 +75,14 @@ router.patch("/:id", async (req, res) => {
   const { clientName, clientPhone, date, time, notes, status } = req.body as {
     clientName?: string; clientPhone?: string; date?: string; time?: string; notes?: string; status?: string;
   };
+  const ALLOWED_STATUSES = ["confirmed", "cancelled", "pending"];
   const [appt] = await db.update(appointmentsTable).set({
-    ...(clientName !== undefined && { clientName }),
-    ...(clientPhone !== undefined && { clientPhone }),
-    ...(date !== undefined && { date }),
-    ...(time !== undefined && { time }),
-    ...(notes !== undefined && { notes }),
-    ...(status !== undefined && { status }),
+    ...(clientName !== undefined && { clientName: String(clientName).slice(0, 200) }),
+    ...(clientPhone !== undefined && { clientPhone: clientPhone ? String(clientPhone).slice(0, 50) : null }),
+    ...(date !== undefined && { date: String(date).slice(0, 20) }),
+    ...(time !== undefined && { time: String(time).slice(0, 10) }),
+    ...(notes !== undefined && { notes: notes ? String(notes).slice(0, 2000) : null }),
+    ...(status !== undefined && ALLOWED_STATUSES.includes(status) && { status }),
   }).where(and(eq(appointmentsTable.id, id), inArray(appointmentsTable.agentId, agentIds))).returning();
   if (!appt) return res.status(404).json({ error: "Not found" });
   return res.json(apptToJson(appt));

@@ -34,6 +34,7 @@ router.get("/users", async (_req, res) => {
 // PATCH /api/admin/users/:id/role
 router.patch("/users/:id/role", async (req, res) => {
   const id = Number(req.params.id);
+  if (isNaN(id) || id <= 0) return res.status(400).json({ error: "ID invalide" });
   const { role } = req.body as { role?: string };
   if (!role || !["admin", "user"].includes(role)) {
     return res.status(400).json({ error: "Rôle invalide (admin ou user)" });
@@ -46,6 +47,7 @@ router.patch("/users/:id/role", async (req, res) => {
 // DELETE /api/admin/users/:id
 router.delete("/users/:id", async (req, res) => {
   const id = Number(req.params.id);
+  if (isNaN(id) || id <= 0) return res.status(400).json({ error: "ID invalide" });
   const session = req.session as { userId?: number };
   if (session.userId === id) {
     return res.status(400).json({ error: "Vous ne pouvez pas supprimer votre propre compte" });
