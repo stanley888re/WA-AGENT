@@ -20,7 +20,7 @@ import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Card, CardContent } from "@/components/ui/card";
-import { Send, Bot, User, QrCode, CheckCircle2, XCircle, Loader2, ArrowRight, ArrowLeft, Smartphone, RefreshCw, Package, ImageIcon, Check, Hash } from "lucide-react";
+import { Send, Bot, User, QrCode, CheckCircle2, XCircle, Loader2, ArrowRight, ArrowLeft, Smartphone, RefreshCw, Package, ImageIcon, Check, Hash, PowerOff, Trash2 } from "lucide-react";
 
 const API = import.meta.env.VITE_API_URL ?? "http://localhost:8080";
 
@@ -339,14 +339,58 @@ export default function EditAgent() {
     await openConnectDialog();
   };
 
+  const [disconnecting, setDisconnecting] = useState(false);
+  const [clearingSession, setClearingSession] = useState(false);
+  const [togglingActive, setTogglingActive] = useState(false);
+
   const handleDisconnect = async () => {
-    if (!confirm("Déconnecter WhatsApp de cet agent ?")) return;
+    if (!confirm("Déconnecter WhatsApp ? Les identifiants sont conservés, vous pourrez vous reconnecter sans scanner à nouveau.")) return;
+    setDisconnecting(true);
     try {
-      await fetch(`/api/agents/${agentId}/disconnect`, { method: "POST" });
+      const res = await fetch(`/api/agents/${agentId}/disconnect`, { method: "POST", credentials: "include" });
+      if (!res.ok) throw new Error((await res.json() as { error?: string }).error ?? "Erreur serveur");
       queryClient.invalidateQueries({ queryKey: getGetAgentQueryKey(agentId) });
       toast({ title: "WhatsApp déconnecté" });
-    } catch {
-      toast({ title: "Erreur", variant: "destructive" });
+    } catch (err) {
+      toast({ title: err instanceof Error ? err.message : "Erreur", variant: "destructive" });
+    } finally {
+      setDisconnecting(false);
+    }
+  };
+
+  const handleClearSession = async () => {
+    if (!confirm("Supprimer la session WhatsApp ? Cela effacera les identifiants stockés et vous devrez rescanner un QR code pour reconnecter.")) return;
+    setClearingSession(true);
+    try {
+      const res = await fetch(`/api/agents/${agentId}/clear-session`, { method: "POST", credentials: "include" });
+      if (!res.ok) throw new Error((await res.json() as { error?: string }).error ?? "Erreur serveur");
+      queryClient.invalidateQueries({ queryKey: getGetAgentQueryKey(agentId) });
+      toast({ title: "Session supprimée", description: "Reconnectez-vous via QR ou code de couplage." });
+    } catch (err) {
+      toast({ title: err instanceof Error ? err.message : "Erreur", variant: "destructive" });
+    } finally {
+      setClearingSession(false);
+    }
+  };
+
+  const handleToggleActive = async () => {
+    const newValue = !form.getValues("isActive");
+    setTogglingActive(true);
+    try {
+      const res = await fetch(`/api/agents/${agentId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ isActive: newValue }),
+      });
+      if (!res.ok) throw new Error((await res.json() as { error?: string }).error ?? "Erreur serveur");
+      form.setValue("isActive", newValue);
+      queryClient.invalidateQueries({ queryKey: getGetAgentQueryKey(agentId) });
+      toast({ title: newValue ? "Agent activé" : "Agent désactivé" });
+    } catch (err) {
+      toast({ title: err instanceof Error ? err.message : "Erreur", variant: "destructive" });
+    } finally {
+      setTogglingActive(false);
     }
   };
 
@@ -404,21 +448,54 @@ export default function EditAgent() {
             </div>
             <p className="text-muted-foreground mt-1 text-sm">Configurez le comportement de votre agent IA.</p>
           </div>
-          {isConnected ? (
-            <div className="flex items-center gap-2 shrink-0">
-              <div className="flex items-center gap-2 text-sm text-primary border border-primary/30 bg-primary/5 rounded-lg px-3 py-2">
-                <CheckCircle2 className="w-4 h-4" />
-                <span className="font-medium">{a.whatsappPhone || "Connecté"}</span>
-              </div>
-              <Button variant="ghost" size="sm" onClick={handleDisconnect} className="text-destructive hover:text-destructive">
-                <XCircle className="w-4 h-4 mr-1" />Déconnecter
-              </Button>
-            </div>
-          ) : (
-            <Button onClick={openConnectDialog} className="gap-2 shrink-0">
-              <QrCode className="w-4 h-4" />Connecter WhatsApp
+          <div className="flex flex-col items-end gap-2 shrink-0">
+            {/* Disable / Enable toggle — always visible */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleToggleActive}
+              disabled={togglingActive}
+              className={form.watch("isActive") ? "text-amber-600 border-amber-300 hover:bg-amber-50" : "text-green-600 border-green-300 hover:bg-green-50"}
+            >
+              {togglingActive ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <PowerOff className="w-4 h-4 mr-1" />}
+              {form.watch("isActive") ? "Désactiver" : "Activer"}
             </Button>
-          )}
+
+            {isConnected ? (
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                <div className="flex items-center gap-2 text-sm text-primary border border-primary/30 bg-primary/5 rounded-lg px-3 py-1.5">
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span className="font-medium">{a.whatsappPhone || "Connecté"}</span>
+                </div>
+                {/* Disconnect: stops socket but keeps credentials */}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleDisconnect}
+                  disabled={disconnecting}
+                  className="text-destructive hover:text-destructive"
+                >
+                  {disconnecting ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <XCircle className="w-4 h-4 mr-1" />}
+                  Déconnecter
+                </Button>
+                {/* Clear session: stops socket AND deletes credentials from DB */}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleClearSession}
+                  disabled={clearingSession}
+                  className="text-destructive hover:text-destructive"
+                >
+                  {clearingSession ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Trash2 className="w-4 h-4 mr-1" />}
+                  Effacer session
+                </Button>
+              </div>
+            ) : (
+              <Button onClick={openConnectDialog} className="gap-2">
+                <QrCode className="w-4 h-4" />Connecter WhatsApp
+              </Button>
+            )}
+          </div>
         </div>
 
         <ScrollArea className="flex-1 md:flex-1 border rounded-lg bg-card">

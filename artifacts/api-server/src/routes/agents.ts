@@ -222,12 +222,35 @@ router.post("/:id/disconnect", async (req, res) => {
   if (!userId) return res.status(401).json({ error: "Non authentifié" });
   const id = Number(req.params.id);
   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
-  await waManager.stopSession(id);
+  // Ownership check FIRST — before any destructive action
+  const [owned] = await db.select().from(agentsTable)
+    .where(and(eq(agentsTable.id, id), eq(agentsTable.userId, userId)));
+  if (!owned) return res.status(404).json({ error: "Not found" });
+  // Stop the socket but keep credentials in DB — user can reconnect without re-scanning QR
+  await waManager.stopSession(id, false);
   const [agent] = await db.update(agentsTable)
     .set({ whatsappConnected: false, whatsappPhone: null })
-    .where(and(eq(agentsTable.id, id), eq(agentsTable.userId, userId)))
+    .where(eq(agentsTable.id, id))
     .returning();
-  if (!agent) return res.status(404).json({ error: "Not found" });
+  return res.json(agentToJson(agent));
+});
+
+// Clear session: stop socket AND delete all stored credentials from DB
+// Forces a fresh QR/pairing scan on next connection
+router.post("/:id/clear-session", async (req, res) => {
+  const userId = uid(req);
+  if (!userId) return res.status(401).json({ error: "Non authentifié" });
+  const id = Number(req.params.id);
+  if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
+  // Ownership check FIRST — before any destructive action
+  const [owned] = await db.select().from(agentsTable)
+    .where(and(eq(agentsTable.id, id), eq(agentsTable.userId, userId)));
+  if (!owned) return res.status(404).json({ error: "Not found" });
+  await waManager.stopSession(id, true); // clearCreds = true
+  const [agent] = await db.update(agentsTable)
+    .set({ whatsappConnected: false, whatsappPhone: null })
+    .where(eq(agentsTable.id, id))
+    .returning();
   return res.json(agentToJson(agent));
 });
 
