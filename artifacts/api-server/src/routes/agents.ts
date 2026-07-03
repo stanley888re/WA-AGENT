@@ -31,6 +31,15 @@ waManager.on("connected", async (agentId: number, phone: string | null) => {
 
 // Called by index.ts after migrations complete — avoids race with ALTER TABLE
 export async function autoReconnectAgents(): Promise<void> {
+  // Dev (Replit) and prod (Render) share the same database. If dev also
+  // auto-connects to live WhatsApp sessions, two Baileys sockets end up
+  // fighting over the same WhatsApp account, causing replies to silently
+  // stop after a couple of messages in production. Only auto-reconnect
+  // when actually running as the production deployment.
+  if (process.env["NODE_ENV"] !== "production") {
+    console.log("[Agents] Skipping auto-reconnect (non-production environment)");
+    return;
+  }
   try {
     const connectedAgents = await db.select().from(agentsTable)
       .then(rows => rows.filter(a => a.whatsappConnected && a.isActive));
